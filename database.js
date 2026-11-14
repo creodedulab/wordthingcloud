@@ -22,11 +22,12 @@ CREATE TABLE IF NOT EXISTS words(id INTEGER PRIMARY KEY, activity_id INTEGER NOT
 CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY, role TEXT NOT NULL, participant_id INTEGER REFERENCES participants(id) ON DELETE CASCADE, created INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS presence(session_token TEXT PRIMARY KEY REFERENCES sessions(token) ON DELETE CASCADE, expires_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS login_attempts(subject TEXT NOT NULL, bucket INTEGER NOT NULL, attempts INTEGER NOT NULL, PRIMARY KEY(subject,bucket));
+CREATE TABLE IF NOT EXISTS runner_leaderboard(id INTEGER PRIMARY KEY AUTOINCREMENT, run_id TEXT NOT NULL UNIQUE, nickname TEXT NOT NULL, score INTEGER NOT NULL, distance INTEGER NOT NULL, played_on TEXT NOT NULL);
 `);
 }
 function pgSql(sql) {
   let i=0;
-  return sql.replace(/\b(FROM|JOIN|UPDATE|INTO)\s+(rooms|activities|participants|activity_participants|words|sessions|login_attempts|presence)\b/gi, '$1 wordthing.$2')
+  return sql.replace(/\b(FROM|JOIN|UPDATE|INTO)\s+(rooms|activities|participants|activity_participants|words|sessions|login_attempts|presence|runner_leaderboard)\b/gi, '$1 wordthing.$2')
     .replace(/\?/g, () => `$${++i}`)
     .replace(/^INSERT OR IGNORE INTO/i, 'INSERT INTO')
     .replace(/^(INSERT INTO wordthing\.activity_participants VALUES\([^)]*\))$/i, '$1 ON CONFLICT DO NOTHING');
@@ -66,6 +67,50 @@ export async function claimPresence(sessionToken) {
   } catch(e){await client.query('ROLLBACK');throw e;} finally{client.release();}
 }
 export async function releasePresence(sessionToken){if(sqlite){sqlite.prepare('DELETE FROM presence WHERE session_token=?').run(sessionToken);return;}await pool.query('DELETE FROM wordthing.presence WHERE session_token=$1',[sessionToken]);}
+
+const leaderboardOrder = 'ORDER BY score DESC, distance DESC, id ASC';
+const rankLimit = 20;
+
+export function getLeaderboard() {
+  return all(`SELECT nickname, score, distance, played_on FROM runner_leaderboard ${leaderboardOrder} LIMIT ${rankLimit}`);
+}
+
+export async function saveRunnerRecord({ runId, nickname, score, distance }) {
+  const insert = 'INSERT INTO runner_leaderboard(run_id,nickname,score,distance,played_on) VALUES(?,?,?,?,?) ON CONFLICT(run_id) DO NOTHING';
+  const prune = `DELETE FROM runner_leaderboard WHERE id NOT IN (SELECT id FROM runner_leaderboard ${leaderboardOrder} LIMIT ${rankLimit})`;
+  const inspect = `SELECT run_id FROM runner_leaderboard ${leaderboardOrder}`;
+  const values = [runId, nickname, score, distance, new Date().toISOString()];
+  const findRank = rows => rows.findIndex(row => row.run_id === runId) + 1;
+  if (sqlite) {
+    sqlite.exec('BEGIN IMMEDIATE');
+    try {
+      sqlite.prepare(insert).run(...values);
+      sqlite.prepare(prune).run();
+      const rank = findRank(sqlite.prepare(inspect).all());
+      sqlite.exec('COMMIT');
+      return rank;
+    } catch (error) {
+      sqlite.exec('ROLLBACK');
+      throw error;
+    }
+  }
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    // Serialize trimming across all app instances so the stored board never exceeds 20 rows.
+    await client.query('SELECT pg_advisory_xact_lock($1)', [13478923]);
+    await client.query(pgSql(insert), values);
+    await client.query(pgSql(prune));
+    const rank = findRank((await client.query(pgSql(inspect))).rows);
+    await client.query('COMMIT');
+    return rank;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
 
 // Serializes each participant's checks and insertion so simultaneous submissions
 // cannot bypass per-activity limits, duplication, or a newly blocked word.

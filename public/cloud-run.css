@@ -1,0 +1,66 @@
+html:has(.cloud-run[open]) { overflow: hidden; }
+
+.cloud-run[open] {
+  --ink: #30204f;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  width: min(100vw, 520px);
+  height: min(100dvh, 900px);
+  max-width: none;
+  max-height: none;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  overflow: hidden;
+  background: #372657;
+  color: #fbf1ff;
+  font-family: 'Malgun Gothic', system-ui, sans-serif;
+  overscroll-behavior: contain;
+}
+.cloud-run-stage { position: relative; min-height: 0; container-type: size; }
+.cloud-run canvas { display: block; width: 100%; height: 100%; }
+.cloud-run-hud {
+  position: absolute; inset: 9px 10px auto; display: flex;
+  align-items: flex-start; justify-content: space-between; gap: 8px;
+  pointer-events: none;
+}
+.cloud-run-health { display: flex; gap: 3px; align-items: center; padding-top: 5px; }
+.cloud-run-health span {
+  width: clamp(14px, 5.4cqw, 26px); aspect-ratio: 1;
+  background: linear-gradient(135deg, #ff9cac, #f65a79 46%, #ce355f 78%);
+  clip-path: polygon(0 15%, 14% 15%, 14% 0, 36% 0, 36% 13%, 50% 13%, 50% 22%, 58% 22%, 58% 13%, 68% 13%, 68% 0, 87% 0, 87% 15%, 100% 15%, 100% 51%, 87% 51%, 87% 64%, 75% 64%, 75% 76%, 62% 76%, 62% 88%, 51% 88%, 51% 100%, 45% 100%, 45% 88%, 33% 88%, 33% 76%, 22% 76%, 22% 64%, 11% 64%, 11% 51%, 0 51%);
+}
+.cloud-run-health span.is-empty { background: #3d296c; opacity: .78; }
+.cloud-run-record { margin-left: auto; color: #fff5ff; text-align: right; font: 900 clamp(30px, 10cqw, 54px)/1 'Courier New', monospace; text-shadow: 2px 2px #382361; }
+.cloud-run-record span { display: block; font-size: .5em; margin-top: 3px; }
+.cloud-run button { border: 3px solid var(--ink); border-radius: 0; box-shadow: inset 3px 3px #ffffff66, inset -3px -3px #0004; transition: none; transform: none; font-weight: 950; }
+.cloud-run button:active, .cloud-run button.is-down { box-shadow: inset 3px 3px #0005; transform: translateY(2px); }
+.cloud-run button:focus-visible { outline: 3px solid white; outline-offset: 2px; }
+.cloud-run-close { pointer-events: auto; background: #f3e3ff; padding: 3px 8px; min-width: 34px; min-height: 34px; color: var(--ink); }
+.cloud-run-overlay {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  padding: 48px 16px 8px; background: #27104822;
+}
+.cloud-run-overlay[hidden] { display: none; }
+.cloud-run-panel {
+  width: 100%; max-width: 370px; max-height: 100%; overflow: auto;
+  padding: clamp(10px, 4cqh, 25px) 10px; background: #352450; border: 4px solid #211432;
+  box-shadow: inset 0 0 0 3px #795da2, 5px 5px #21143281;
+  text-align: center;
+}
+.cloud-run-panel h2 { margin: 0; color: #f1ccff; font-size: clamp(21px, 8cqw, 36px); line-height: 1.1; text-shadow: 3px 3px #241438; }
+.cloud-run-panel p { margin: 12px 0; font-size: clamp(12px, 3.8cqw, 17px); font-weight: 800; line-height: 1.65; }
+.cloud-run-panel strong { color: #e0b2ff; }
+.cloud-run-start { background: #9253c5; color: #fff; padding: 8px 19px; text-shadow: 2px 2px #563473; }
+.cloud-run-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; padding: 8px 10px max(8px, env(safe-area-inset-bottom)); border-top: 3px solid #c5a0eb; background: #392852; }
+.cloud-run-controls button { font-size: clamp(15px, 4vw, 22px); height: clamp(48px, 10dvh, 82px); padding: 0 4px; touch-action: none; user-select: none; color: var(--ink); }
+.cloud-run-controls button:first-child { background: #d9befb; }
+.cloud-run-controls button:last-child { background: #ba8aee; }
+@media (min-width: 601px) { .cloud-run[open] { height: min(94dvh, 900px); } }
+.cloud-run-leaderboard h3 { margin: 12px 0 4px; color: #f1ccff; }
+.cloud-run-leaderboard form:not([hidden]) { display: flex; align-items: end; gap: 8px; justify-content: center; }
+.cloud-run-leaderboard label { min-width: 0; text-align: left; }
+.cloud-run-leaderboard input { display: block; width: 100%; max-width: 9rem; }
+.cloud-run-leaderboard button { background: #e0b2ff; color: #30204f; white-space: nowrap; }
+.cloud-run-leaderboard ol { max-height: min(24cqh, 13rem); overflow: auto; text-align: left; padding-inline-start: 2.4em; }
+.cloud-run-leaderboard li { padding: 3px 0; overflow-wrap: anywhere; }

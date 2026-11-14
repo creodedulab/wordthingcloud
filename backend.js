@@ -1,4 +1,4 @@
-import { get, all, run, claimPresence, releasePresence, submitWord } from './database.js';
+import { get, all, run, claimPresence, releasePresence, submitWord, getLeaderboard, saveRunnerRecord } from './database.js';
 import { randomBytes, scryptSync, timingSafeEqual, createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -121,6 +121,23 @@ function csvDownload(res, name, rows) {
   res.end(csv(rows));
 }
 async function api(req, res, url) {
+  if (url.pathname === '/api/game/leaderboard') {
+    if (req.method === 'GET') return json(res, 200, { records: await getLeaderboard() });
+    if (req.method === 'POST') {
+      await throttle(req, 'runner-leaderboard', 12);
+      const { runId, nickname, score, distance } = (await body(req)) ?? {};
+      const name = typeof nickname === 'string' ? nickname.trim().normalize('NFC') : '';
+      if (!name || [...name].length > 20 || /[\p{C}]/u.test(name) ||
+          typeof runId !== 'string' || !/^[a-f0-9]{32}$/.test(runId) ||
+          !Number.isSafeInteger(score) || score < 0 || score > 2147483647 || score % 10 ||
+          !Number.isSafeInteger(distance) || distance < 0 || distance > 2147483647) {
+        throw [400, '닉네임 또는 게임 기록을 확인해 주세요.'];
+      }
+      const rank = await saveRunnerRecord({ runId, nickname: name, score, distance });
+      return json(res, 200, { rank, records: await getLeaderboard() });
+    }
+    throw [405, '지원하지 않는 요청입니다.'];
+  }
   const s = await session(req),
     method = req.method,
     path = url.pathname;
@@ -335,7 +352,9 @@ export async function handler(req, res) {
     if (url.pathname === '/api/index' && url.searchParams.has('__route')) url.pathname='/api/'+url.searchParams.get('__route');
     if (url.pathname.startsWith('/api/')) return await api(req, res, url);
     const file = /^\/(?:start|admin(?:\/.*)?|join\/[A-Za-z0-9]{4}|room\/[A-Za-z0-9]{4})\/?$/.test(url.pathname) || url.pathname === '/' ? 'index.html' : url.pathname.slice(1);
-    if (!['index.html', 'app.js', 'style.css', 'mascot.png', 'mongtting-sprites.png', 'sky-run.png', 'game.js'].includes(file)) throw [404, 'Not found'];
+    if (!['index.html', 'app.js', 'style.css', 'mascot.png', 'cloud-run.js', 'cloud-run.css', 'mongtting-run-poses.png',
+      'cloud-run-obstacles.png', 'cloud-run-storm.png', 'cloud-run-tower.png', 'mongtting-run-animation.png',
+      'mongtting-smile.png'].includes(file)) throw [404, 'Not found'];
     const type = file.endsWith('.png') ? 'image/png' : file.endsWith('.js') ? 'text/javascript' : file.endsWith('.css') ? 'text/css' : 'text/html';
     res.writeHead(200, {
       'Content-Type': `${type}; charset=utf-8`,
