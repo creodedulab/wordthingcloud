@@ -1,6 +1,7 @@
-let hold;
-document.addEventListener('pointerdown',e=>{if(e.target.closest('.mascot'))hold=setTimeout(openGame,1000)});
-for(const event of ['pointerup','pointercancel','pointermove'])document.addEventListener(event,()=>clearTimeout(hold));
+let mascotClicks=0, smileTimer, smilingImage;
+function getSmile(){if(smilingImage)return smilingImage;const image=new Image();image.src='/mongtting-sprites.png';smilingImage=image;return image}
+getSmile();
+document.addEventListener('click',e=>{const mascot=e.target.closest('.mascot');if(!mascot)return;const image=getSmile();if(image.complete&&image.naturalWidth){const canvas=document.createElement('canvas');canvas.width=image.naturalWidth/2;canvas.height=image.naturalHeight/2;canvas.getContext('2d').drawImage(image,canvas.width,0,canvas.width,canvas.height,0,0,canvas.width,canvas.height);mascot.src=canvas.toDataURL('image/png');clearTimeout(smileTimer);smileTimer=setTimeout(()=>{if(mascot.isConnected)mascot.src='/mascot.png'},650)}mascotClicks++;if(mascotClicks>=5){mascotClicks=0;setTimeout(openGame,200)}});
 function openGame(){
  if(document.querySelector('#runner-dialog'))return;
  const dialog=document.createElement('dialog');dialog.id='runner-dialog';dialog.innerHTML=`<div class="runner-head"><h2>☁ 몽띵이 하늘 달리기</h2><button id="runner-close" aria-label="게임 닫기">✕</button></div><div class="runner-screen"><canvas width="480" height="700" aria-label="몽띵이 하늘 달리기 게임"></canvas><div class="runner-overlay" id="runner-overlay"><strong id="runner-overlay-title">몽띵이 하늘 달리기</strong><span>구름을 피하고 별을 모아요!</span><button id="runner-start" class="primary">게임 시작</button><button id="runner-restart" hidden>다시 시작</button></div></div><div id="runner-status" role="status">시작을 누르고 생각 별을 모아보세요!</div><div class="runner-controls"><button id="runner-duck">▼ 슬라이드</button><button id="runner-jump" class="primary">▲ 점프</button></div><p class="runner-help">스페이스 또는 ↑ 점프 · ↓ 슬라이드 · 점프는 두 번까지!</p>`;document.body.append(dialog);dialog.showModal();
