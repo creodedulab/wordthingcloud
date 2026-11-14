@@ -37,31 +37,81 @@ const bounds = {
   ice: { w: 31, h: 25, lift: 0 }, storm: { w: 36, h: 110, lift: 15 },
   tower: { w: 14, h: 62, lift: 0 }, star: { w: 11, h: 11 }, heart: { w: 14, h: 14 },
 };
-// Each star trail specifies [horizontal offset, centre height] relative to its obstacle.
-const starTrails = {
-  ice: [[-44, 9], [-28, 31], [-12, 51], [4, 61], [20, 64], [36, 55], [52, 39], [68, 18]],
-  storm: [[-16, 7], [0, 7], [16, 7], [32, 7], [48, 7]],
-  tower: [[-71, 12], [-55, 37], [-39, 54], [-23, 73], [-7, 95], [9, 110],
-    [25, 117], [41, 111], [57, 96], [73, 73], [89, 45], [105, 15]],
+// Times are in 60 Hz frames, relative to the start of each maneuver.
+const maneuvers = {
+  hop: { duration: 40, jumps: [0], obstacles: [['ice', 18]] },
+  doubleHop: { duration: 41, jumps: [0], obstacles: [['ice', 14], ['ice', 22]] },
+  duck: { duration: 34, crouch: [0, 32], obstacles: [['storm', 16]] },
+  longDuck: { duration: 43, crouch: [0, 41], obstacles: [['storm', 13], ['storm', 26]] },
+  tower: { duration: 64, jumps: [0, 17], obstacles: [['tower', 33]] },
 };
-const obstacleKinds = Object.keys(starTrails);
-// Space reserved before a maneuver and after its center for landing at top speed.
-const approach = { ice: 75, storm: 40, tower: 115 };
-const recovery = { ice: 65, storm: 44, tower: 144 };
 
-function createCourse() {
-  let previous, center = 0, index = 0;
+const courseTiers = [
+  { from: 0, gap: 20, patterns: [['hop'], ['duck']] },
+  { from: 150, gap: 15, patterns: [['doubleHop'], ['longDuck'], ['tower'], ['hop', 'duck'], ['duck', 'hop']] },
+  { from: 350, gap: 10, patterns: [['doubleHop', 'duck'], ['longDuck', 'hop'], ['tower', 'duck'],
+    ['duck', 'tower'], ['hop', 'tower'], ['tower', 'doubleHop']] },
+  { from: 650, gap: 7, patterns: [['longDuck', 'tower', 'hop'], ['tower', 'duck', 'doubleHop'],
+    ['doubleHop', 'tower', 'longDuck'], ['hop', 'longDuck', 'tower'], ['duck', 'doubleHop', 'duck'],
+    ['tower', 'longDuck', 'tower']] },
+];
+
+const courseLead = width + 8 - playerX;
+const topSpeed = 4.45;
+const acceleration = .00064;
+const speedCapDistance = (topSpeed - 2.5) / acceleration;
+
+// Advance the same distance in the game and when placing frame-based course patterns.
+function distanceAfter(distance, frames) {
+  if (distance >= speedCapDistance) return distance + topSpeed * frames;
+  const speed = 2.5 + acceleration * distance;
+  const toCap = Math.log(topSpeed / speed) / acceleration;
+  if (frames >= toCap) return speedCapDistance + topSpeed * (frames - toCap);
+  return distance + speed * Math.expm1(acceleration * frames) / acceleration;
+}
+
+function jumpHeight(frames, jumps) {
+  let height = 0;
+  for (const [i, jump] of jumps.entries()) {
+    const nextJump = jumps[i + 1];
+    const elapsed = Math.min(frames, nextJump ?? frames) - jump;
+    height += (jumpSpeed - gravity * elapsed / 2) * elapsed;
+    if (nextJump == null || nextJump >= frames) break;
+  }
+  return Math.max(0, height);
+}
+
+function createCourse(random = Math.random) {
+  let start = 265;
+  let previous;
+  let sections = 0;
   return () => {
-    const choices = obstacleKinds.filter(kind => kind !== previous);
-    const kind = choices[Math.floor(Math.random() * choices.length)];
-    center += (previous ? recovery[previous] + approach[kind] : 135) + 16 + Math.floor(Math.random() * 37);
-    previous = kind;
-    const entries = [
-      [kind, center - bounds[kind].w / 2, bounds[kind].lift],
-      ...starTrails[kind].map(([offset, height]) => ['star', center + offset - bounds.star.w / 2,
-        height - bounds.star.h / 2]),
-    ];
-    if (++index % 4 === 0) entries.push(['heart', center + recovery[kind] + 4, 4]);
+    const tier = courseTiers.findLast(({ from }) => start / 4 >= from);
+    const rest = tier.from >= 650 && sections % 4 === 3;
+    const patterns = rest ? courseTiers[0].patterns : tier.patterns;
+    const choices = patterns.filter(pattern => pattern !== previous);
+    const pattern = choices[Math.floor(random() * choices.length)];
+    previous = pattern;
+    const gap = tier.gap + Math.floor(random() * 6);
+    let frames = 0;
+    const entries = [];
+    const positionAt = time => distanceAfter(start, time) - courseLead;
+    for (const action of pattern) {
+      const move = maneuvers[action];
+      for (const [kind, time] of move.obstacles) {
+        entries.push([kind, positionAt(frames + time) - bounds[kind].w / 2, bounds[kind].lift]);
+      }
+      for (let time = 0; time < move.duration; time += 5) {
+        const height = move.jumps ? jumpHeight(time, move.jumps) + 13 : 7;
+        entries.push(['star', positionAt(frames + time) - bounds.star.w / 2, height - bounds.star.h / 2]);
+      }
+      frames += move.duration + gap;
+    }
+    if (++sections % 4 === 0) {
+      entries.push(['heart', positionAt(frames - 3) - bounds.heart.w / 2, 4]);
+      frames += 8;
+    }
+    start = distanceAfter(start, frames + (rest ? 15 : 8));
     return entries.sort((a, b) => a[1] - b[1]);
   };
 }
@@ -480,8 +530,7 @@ function openRun(trigger) {
   }
 
   function advance(dt) {
-    const speed = 2.5 + Math.min(distance / 1600, 1.1);
-    distance += speed * dt;
+    distance = distanceAfter(distance, dt);
     elevation += (velocity - gravity * dt / 2) * dt;
     velocity -= gravity * dt;
     if (elevation <= 0) elevation = velocity = jumps = 0;
