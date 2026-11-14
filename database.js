@@ -1,12 +1,15 @@
 import { DatabaseSync } from 'node:sqlite';
 import pg from 'pg';
+import { readFileSync } from 'node:fs';
 
 pg.types.setTypeParser(20, value => Number(value));
 const connectionString = process.env.DATABASE_URL;
 let sqlite;
 let pool;
 if (connectionString) {
-  pool = new pg.Pool({ connectionString, max: 2, idleTimeoutMillis: 10000, connectionTimeoutMillis: 10000 });
+  const url = new URL(connectionString);
+  url.searchParams.delete('sslmode');
+  pool = new pg.Pool({ connectionString: url.toString(), ssl: { ca: readFileSync(new URL('./supabase/ca.pem', import.meta.url), 'utf8'), rejectUnauthorized: true }, max: 2, idleTimeoutMillis: 10000, connectionTimeoutMillis: 10000 });
 } else {
   if (process.env.NODE_ENV === 'production' || process.env.VERCEL) throw new Error('DATABASE_URL must be configured for production');
   sqlite = new DatabaseSync(process.env.DB_PATH || 'wordthing.sqlite');
