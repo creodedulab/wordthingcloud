@@ -354,7 +354,7 @@ export async function handler(req, res) {
     const file = /^\/(?:start|admin(?:\/.*)?|join\/[A-Za-z0-9]{4}|room\/[A-Za-z0-9]{4})\/?$/.test(url.pathname) || url.pathname === '/' ? 'index.html' : url.pathname.slice(1);
     if (!['index.html', 'app.js', 'style.css', 'mascot.png', 'cloud-run.js', 'cloud-run.css', 'mongtting-run-poses.png',
       'cloud-run-obstacles.png', 'cloud-run-storm.png', 'cloud-run-tower.png', 'mongtting-run-animation.png',
-      'mongtting-smile.png'].includes(file)) throw [404, 'Not found'];
+      'mongtting-smile.png', 'cloud-layout.js', 'cloud-example-15.png', 'cloud-example-50.png', 'cloud-example-200.png'].includes(file)) throw [404, 'Not found'];
     const type = file.endsWith('.png') ? 'image/png' : file.endsWith('.js') ? 'text/javascript' : file.endsWith('.css') ? 'text/css' : 'text/html';
     res.writeHead(200, {
       'Content-Type': `${type}; charset=utf-8`,
