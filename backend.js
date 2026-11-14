@@ -335,7 +335,7 @@ export async function handler(req, res) {
     if (url.pathname === '/api/index' && url.searchParams.has('__route')) url.pathname='/api/'+url.searchParams.get('__route');
     if (url.pathname.startsWith('/api/')) return await api(req, res, url);
     const file = /^\/(?:start|admin(?:\/.*)?|join\/[A-Za-z0-9]{4}|room\/[A-Za-z0-9]{4})\/?$/.test(url.pathname) || url.pathname === '/' ? 'index.html' : url.pathname.slice(1);
-    if (!['index.html', 'app.js', 'style.css', 'mascot.png'].includes(file)) throw [404, 'Not found'];
+    if (!['index.html', 'app.js', 'style.css', 'mascot.png', 'mongtting-sprites.png', 'game.js'].includes(file)) throw [404, 'Not found'];
     const type = file.endsWith('.png') ? 'image/png' : file.endsWith('.js') ? 'text/javascript' : file.endsWith('.css') ? 'text/css' : 'text/html';
     res.writeHead(200, {
       'Content-Type': `${type}; charset=utf-8`,
