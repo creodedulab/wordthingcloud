@@ -1,6 +1,6 @@
 const width = 260;
 const playerX = 47;
-const maxHealth = 4;
+const maxHealth = 3;
 const jumpSpeed = 5.85;
 const gravity = .32;
 const musicStep = 60 / 132 / 2;
@@ -33,31 +33,75 @@ const heartFrame = [574, 579, 383, 369, 37, 943];
 const cloudArt = ['....####....','..##llll##..','.##llllpll#.','#lllllppppp#','#lppppppvpp#','.##vvvvv###.','...#####....'];
 const heartArt = ['.##.##.','#rr#rr#','#lrprr#','#rrrrr#','.#rrr#.','..#r#..','...#...'];
 const heartPalette = { '#':'#493064', l:'#ffafbb', p:'#f9758d', r:'#f74b66' };
+const purpleStarArt = [
+  '.....#.....', '....#h#....', '....#h#....', '...#hll#...',
+  '###hhlll###', '#hlllllllv#', '.#lllvvvv#.', '..#llvvv#..',
+  '..#lv#vv#..', '..#v#.#v#..', '..##...##..',
+];
+const purpleStarPalette = { '#':'#452472', h:'#f0deff', l:'#c18bfa', v:'#8e48d5' };
+const pickupPoints = { star: 10, purpleStar: 40, heart: 100 };
 const bounds = {
   ice: { w: 31, h: 25, lift: 0 }, storm: { w: 36, h: 110, lift: 15 },
-  tower: { w: 14, h: 62, lift: 0 }, star: { w: 11, h: 11 }, heart: { w: 14, h: 14 },
+  tower: { w: 14, h: 62, lift: 0 }, star: { w: 11, h: 11 },
+  purpleStar: { w: 22, h: 22 }, heart: { w: 14, h: 14 },
 };
+function stormFormation(count) {
+  const duration = 25 + (count - 1) * 11;
+  return {
+    duration,
+    crouch: [0, duration - 2],
+    obstacles: Array.from({ length: count }, (_, index) => ['storm', 13 + index * 11]),
+  };
+}
+
 // Times are in 60 Hz frames, relative to the start of each maneuver.
 const maneuvers = {
   hop: { duration: 40, jumps: [0], obstacles: [['ice', 18]] },
+  quickHop: { duration: 37, jumps: [0], obstacles: [['ice', 18]] },
   doubleHop: { duration: 41, jumps: [0], obstacles: [['ice', 14], ['ice', 22]] },
   duck: { duration: 34, crouch: [0, 32], obstacles: [['storm', 16]] },
   longDuck: { duration: 43, crouch: [0, 41], obstacles: [['storm', 13], ['storm', 26]] },
+  tripleDuck: stormFormation(3),
+  quadDuck: stormFormation(4),
+  quintDuck: stormFormation(5),
   tower: { duration: 64, jumps: [0, 17], obstacles: [['tower', 33]] },
+  twinTowers: { duration: 64, jumps: [0, 17], obstacles: [['tower', 28], ['tower', 37]] },
+  shortPit: { duration: 39, jumps: [0], pit: [6, 31] },
+  longPit: { duration: 57, jumps: [0, 18], pit: [6, 49] },
 };
 
 const courseTiers = [
-  { from: 0, gap: 20, patterns: [['hop'], ['duck']] },
-  { from: 150, gap: 15, patterns: [['doubleHop'], ['longDuck'], ['tower'], ['hop', 'duck'], ['duck', 'hop']] },
-  { from: 350, gap: 10, patterns: [['doubleHop', 'duck'], ['longDuck', 'hop'], ['tower', 'duck'],
-    ['duck', 'tower'], ['hop', 'tower'], ['tower', 'doubleHop']] },
-  { from: 650, gap: 7, patterns: [['longDuck', 'tower', 'hop'], ['tower', 'duck', 'doubleHop'],
-    ['doubleHop', 'tower', 'longDuck'], ['hop', 'longDuck', 'tower'], ['duck', 'doubleHop', 'duck'],
-    ['tower', 'longDuck', 'tower']] },
+  { from: 0, gap: [6, 16], patterns: [
+    ['shortPit', 'duck'], ['duck', 'shortPit'], ['shortPit', 'doubleHop'], ['hop', 'shortPit', 'duck'],
+    ['duck', 'quickHop', 'duck'],
+  ] },
+  { from: 150, gap: [3, 11], patterns: [
+    ['longPit', 'duck', 'hop'], ['longDuck', 'longPit'], ['tower', 'shortPit', 'duck'],
+    ['shortPit', 'longPit', 'hop'], ['doubleHop', 'longPit', 'longDuck'], ['duck', 'twinTowers', 'shortPit'],
+    ['twinTowers', 'duck', 'shortPit'],
+    ['tripleDuck', 'quickHop', 'duck'], ['duck', 'quickHop', 'tripleDuck'],
+    ['longDuck', 'quickHop', 'longDuck', 'shortPit'],
+  ] },
+  { from: 350, gap: [0, 8], patterns: [
+    ['longPit', 'longDuck', 'tower'], ['longDuck', 'shortPit', 'longPit'], ['tower', 'longPit', 'duck'],
+    ['doubleHop', 'longDuck', 'longPit', 'shortPit'], ['shortPit', 'tower', 'longDuck', 'longPit'],
+    ['duck', 'longPit', 'shortPit', 'twinTowers'], ['twinTowers', 'longDuck', 'longPit'],
+    ['quadDuck', 'quickHop', 'longDuck'], ['tripleDuck', 'quickHop', 'quadDuck', 'longPit'],
+    ['shortPit', 'longDuck', 'quickHop', 'quadDuck'],
+  ] },
+  { from: 600, gap: [0, 5], patterns: [
+    ['longPit', 'duck', 'shortPit', 'tower', 'longPit'], ['tower', 'longDuck', 'longPit', 'doubleHop'],
+    ['longDuck', 'longPit', 'tower', 'shortPit', 'duck'], ['shortPit', 'longPit', 'longDuck', 'longPit'],
+    ['doubleHop', 'twinTowers', 'longPit', 'shortPit', 'longDuck'],
+    ['duck', 'shortPit', 'longPit', 'twinTowers', 'longDuck'],
+    ['twinTowers', 'duck', 'longPit', 'shortPit', 'twinTowers'],
+    ['quintDuck', 'quickHop', 'tripleDuck', 'longPit'], ['longPit', 'quadDuck', 'quickHop', 'quintDuck'],
+    ['tripleDuck', 'quickHop', 'quintDuck', 'quickHop', 'longDuck'],
+  ] },
 ];
 
 const courseLead = width + 8 - playerX;
-const topSpeed = 4.45;
+const topSpeed = 5.2;
 const acceleration = .00064;
 const speedCapDistance = (topSpeed - 2.5) / acceleration;
 
@@ -83,35 +127,56 @@ function jumpHeight(frames, jumps) {
 
 function createCourse(random = Math.random) {
   let start = 265;
-  let previous;
-  let sections = 0;
+  let endMove;
+  const recent = [];
+  let nextHeart = 150;
+  let nextPurpleStar = 95;
   return () => {
     const tier = courseTiers.findLast(({ from }) => start / 4 >= from);
-    const rest = tier.from >= 650 && sections % 4 === 3;
-    const patterns = rest ? courseTiers[0].patterns : tier.patterns;
-    const choices = patterns.filter(pattern => pattern !== previous);
+    const fresh = tier.patterns.filter(pattern => !recent.includes(pattern));
+    const varied = fresh.filter(pattern => pattern[0] !== endMove);
+    const choices = varied.length ? varied : fresh;
     const pattern = choices[Math.floor(random() * choices.length)];
-    previous = pattern;
-    const gap = tier.gap + Math.floor(random() * 6);
+    recent.push(pattern);
+    if (recent.length > 2) recent.shift();
+    endMove = pattern.at(-1);
+    const [minGap, maxGap] = tier.gap;
     let frames = 0;
     const entries = [];
     const positionAt = time => distanceAfter(start, time) - courseLead;
-    for (const action of pattern) {
+    for (const [index, action] of pattern.entries()) {
       const move = maneuvers[action];
-      for (const [kind, time] of move.obstacles) {
+      for (const [kind, time] of move.obstacles ?? []) {
         entries.push([kind, positionAt(frames + time) - bounds[kind].w / 2, bounds[kind].lift]);
+      }
+      if (move.pit) {
+        const [left, right] = move.pit.map(time => positionAt(frames + time));
+        entries.push(['pit', left, 0, right - left]);
       }
       for (let time = 0; time < move.duration; time += 5) {
         const height = move.jumps ? jumpHeight(time, move.jumps) + 13 : 7;
-        entries.push(['star', positionAt(frames + time) - bounds.star.w / 2, height - bounds.star.h / 2]);
+        const position = positionAt(frames + time);
+        const meters = (position + courseLead) / 4;
+        const kind = meters >= nextPurpleStar && !move.crouch ? 'purpleStar' : 'star';
+        const { w, h } = bounds[kind];
+        entries.push([kind, position - w / 2, Math.max(1, height - h / 2)]);
+        if (kind === 'purpleStar') {
+          nextPurpleStar = meters + 80 + random() * 60;
+          time += 5;
+        }
       }
+      const nextAction = pattern[index + 1];
+      const gap = action === 'quickHop' || nextAction === 'quickHop'
+        ? Math.floor(random() * 4)
+        : minGap + Math.floor(random() * (maxGap - minGap + 1));
       frames += move.duration + gap;
     }
-    if (++sections % 4 === 0) {
-      entries.push(['heart', positionAt(frames - 3) - bounds.heart.w / 2, 4]);
-      frames += 8;
+    if (distanceAfter(start, frames) / 4 >= nextHeart) {
+      entries.push(['heart', positionAt(frames + 5) - bounds.heart.w / 2, 4]);
+      nextHeart = distanceAfter(start, frames + 5) / 4 + 175 + random() * 85;
+      frames += 15;
     }
-    start = distanceAfter(start, frames + (rest ? 15 : 8));
+    start = distanceAfter(start, frames + 5);
     return entries.sort((a, b) => a[1] - b[1]);
   };
 }
@@ -127,6 +192,7 @@ const obstacleBodies = {
   tower: [[2, 12, 1, 9], [3, 11, 9, 20], [3, 12, 20, 32], [3, 12, 32, 44],
     [3, 11, 44, 53], [2, 11, 53, 58], [5, 11, 58, 61]],
   star: [[-2, 13, -2, 13]],
+  purpleStar: [[2, 20, 5, 16], [7, 15, 1, 21]],
   heart: [[0, 14, 0, 14]],
 };
 
@@ -153,7 +219,7 @@ function pixels(ctx, rows, x, y, scale, palette) {
   });
 }
 
-function scenery(ctx, height, ground, distance) {
+function scenery(ctx, height, ground, distance, pits) {
   const sky = ctx.createLinearGradient(0, 0, 0, ground);
   sky.addColorStop(0, '#6949a3');
   sky.addColorStop(.55, '#a98cd9');
@@ -182,6 +248,17 @@ function scenery(ctx, height, ground, distance) {
   }
 
   const trackTop = ground + 6;
+  ctx.save();
+  ctx.beginPath();
+  let left = 0;
+  for (const pit of pits) {
+    const edge = Math.round(pit.x - distance);
+    if (edge >= width) break;
+    if (edge > left) ctx.rect(left, trackTop, edge - left, height - trackTop);
+    left = Math.max(left, Math.round(pit.x + pit.w - distance));
+  }
+  if (left < width) ctx.rect(left, trackTop, width - left, height - trackTop);
+  ctx.clip();
   ctx.fillStyle = '#dec6f3';
   ctx.fillRect(0, trackTop, width, height - trackTop);
   ctx.fillStyle = '#f7e9fc';
@@ -189,6 +266,25 @@ function scenery(ctx, height, ground, distance) {
   const trackColors = { '#':'#ddc6f3', l:'#f8ecfc', p:'#eedcf9', v:'#c9afe8' };
   for (let x = -Math.floor(distance) % 36 - 36; x < width; x += 36) {
     pixels(ctx, cloudArt, x, trackTop + 3, 3, trackColors);
+  }
+  ctx.restore();
+
+  if (!pits.length) return;
+  const depth = ctx.createLinearGradient(0, trackTop, 0, height);
+  depth.addColorStop(0, '#b998da');
+  depth.addColorStop(1, '#604988');
+  for (const pit of pits) {
+    const start = Math.round(pit.x - distance);
+    const end = Math.round(pit.x + pit.w - distance);
+    if (end <= 0 || start >= width) continue;
+    ctx.fillStyle = depth;
+    ctx.fillRect(start, trackTop, end - start, height - trackTop);
+    for (let row = 0; row < 4; row++) {
+      const inset = 10 - row * 3;
+      ctx.fillStyle = row === 0 ? '#f7e9fc' : row < 3 ? '#d0b5ea' : '#a685ca';
+      ctx.fillRect(start, trackTop + row * 4, inset, 4);
+      ctx.fillRect(end - inset, trackTop + row * 4, inset, 4);
+    }
   }
 }
 
@@ -217,6 +313,10 @@ function drawObject(ctx, object, ground) {
   const bottom = ground - lift + 6;
   if (kind === 'heart') {
     pixels(ctx, heartArt, object.x, bottom - h, 2, heartPalette);
+    return;
+  }
+  if (kind === 'purpleStar') {
+    pixels(ctx, purpleStarArt, object.x, bottom - h, 2, purpleStarPalette);
     return;
   }
   const [image, sx, sy, sw, sh] = obstacleSprites[kind];
@@ -267,7 +367,7 @@ function openRun(trigger) {
       <div class="cloud-run-overlay">
         <div class="cloud-run-panel">
           <h2>몽띵이 달리기</h2>
-          <p>별을 모으며 보랏빛 하늘을 달려요!<br>얼음 구름 <strong>점프</strong> · 먹구름 <strong>숙이기</strong><br>높은 구름 탑은 <strong>2단 점프</strong></p>
+          <p>얼음 구름·좁은 구멍 <strong>점프</strong><br>먹구름 <strong>숙이기</strong><br>구름 탑·넓은 구멍 <strong>2단 점프</strong><br>보라색 별 <strong>40점</strong></p>
           <button class="cloud-run-start" autofocus disabled>게임 시작</button>
           <section class="cloud-run-leaderboard" hidden aria-label="게임 순위">
             <h3>TOP 20</h3>
@@ -382,7 +482,7 @@ function openRun(trigger) {
   const jumpButton = dialog.querySelector('[data-jump]');
   let raf, last, running = false, duck = false, elevation = 0, velocity = 0, jumps = 0;
   let distance = 0, points = 0, health = maxHealth, immunity = 0, objects = [];
-  let nextSection, upcoming, cursor, runTime = 0, heartEyes = 0, audio;
+  let nextSection, upcoming, cursor, runTime = 0, heartEyes = 0, audio, fall;
   let musicChannel, nextMusicTime, musicIndex;
 
   function tone(note, time, duration, volume, type = 'triangle', output = audio.destination, endNote = note) {
@@ -430,7 +530,7 @@ function openRun(trigger) {
 
   function pickupSound(kind) {
     if (audio?.state !== 'running') return;
-    const notes = kind === 'heart' ? [72, 76, 79] : [81, 88];
+    const notes = kind === 'heart' ? [72, 76, 79] : kind === 'purpleStar' ? [81, 85, 93] : [81, 88];
     notes.forEach((note, index) => tone(note, audio.currentTime + index * .045, .09, .047));
   }
 
@@ -472,7 +572,7 @@ function openRun(trigger) {
     duckButton.classList.toggle('is-down', duck);
   }
   function jump() {
-    if (!running || jumps === 2) return;
+    if (!running || fall || jumps === 2) return;
     velocity = jumpSpeed;
     jumps++;
     setDuck(false);
@@ -496,6 +596,7 @@ function openRun(trigger) {
     rankList.replaceChildren();
     stopMusic();
     distance = points = elevation = velocity = jumps = immunity = cursor = runTime = heartEyes = 0;
+    fall = undefined;
     nextSection = createCourse();
     upcoming = [['star', 0, 3], ['star', 16, 3], ['star', 32, 3]];
     if (window.AudioContext) {
@@ -530,30 +631,54 @@ function openRun(trigger) {
   }
 
   function advance(dt) {
+    if (fall) {
+      fall.frames += dt;
+      elevation = -(fall.frames ** 2) * gravity / 2;
+      if (elevation <= -90) end();
+      return;
+    }
+
     distance = distanceAfter(distance, dt);
-    elevation += (velocity - gravity * dt / 2) * dt;
-    velocity -= gravity * dt;
-    if (elevation <= 0) elevation = velocity = jumps = 0;
     immunity = Math.max(0, immunity - dt);
     heartEyes = Math.max(0, heartEyes - dt);
-    if (!duck && elevation === 0) runTime += dt;
 
     while (true) {
       if (cursor === upcoming.length) {
         upcoming = nextSection();
         cursor = 0;
       }
-      const [kind, position, lift] = upcoming[cursor];
+      const [kind, position, lift, pitWidth] = upcoming[cursor];
       if (position > distance) break;
-      objects.push({ kind, x: width + 8 + position, lift });
+      objects.push({ kind, x: width + 8 + position, lift, w: pitWidth ?? bounds[kind].w });
       cursor++;
     }
+
+    const foot = playerX + distance;
+    elevation += (velocity - gravity * dt / 2) * dt;
+    velocity -= gravity * dt;
+    if (elevation <= 0) {
+      elevation = velocity = jumps = 0;
+      const overPit = objects.some(object => object.kind === 'pit' &&
+        foot > object.x + 4 && foot < object.x + object.w - 4);
+      if (overPit) {
+        fall = { frames: 0 };
+        health = immunity = 0;
+        updateHearts();
+        recordDistance.textContent = Math.floor(distance / 4) + 'm';
+        clearDuck();
+        jumpButton.disabled = duckButton.disabled = true;
+        impactSound();
+        return;
+      }
+      if (!duck) runTime += dt;
+    }
+
     const body = duck && elevation === 0 ? crouchedBody : uprightBody;
     for (const object of objects) {
-      if (object.hit || !touchesObject(object, distance, elevation, body)) continue;
-      if (object.kind === 'star' || object.kind === 'heart') {
+      if (object.kind === 'pit' || object.hit || !touchesObject(object, distance, elevation, body)) continue;
+      if (object.kind in pickupPoints) {
         object.hit = true;
-        points += object.kind === 'star' ? 10 : 100;
+        points += pickupPoints[object.kind];
         pickupSound(object.kind);
         if (object.kind === 'heart') {
           health = Math.min(maxHealth, health + 1);
@@ -567,8 +692,8 @@ function openRun(trigger) {
         if (health === 0) { end(); break; }
       }
     }
-    objects = objects.filter(object => object.x + bounds[object.kind].w >= distance &&
-      !(object.hit && ['star', 'heart'].includes(object.kind)));
+    objects = objects.filter(object => object.x + object.w >= distance &&
+      !(object.hit && object.kind in pickupPoints));
     updateHearts();
     score.value = points;
     recordDistance.textContent = Math.floor(distance / 4) + 'm';
@@ -585,11 +710,13 @@ function openRun(trigger) {
     ctx.setTransform(canvas.width / width, 0, 0, canvas.height / viewHeight, 0, 0);
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
-    scenery(ctx, viewHeight, ground, distance);
-    for (const object of objects) drawObject(ctx, { ...object, x: object.x - distance }, ground);
+    scenery(ctx, viewHeight, ground, distance, objects.filter(object => object.kind === 'pit'));
+    for (const object of objects) {
+      if (object.kind !== 'pit') drawObject(ctx, { ...object, x: object.x - distance }, ground);
+    }
     const crouching = duck && !elevation;
-    const pose = health === 0 ? 'over'
-      : immunity > 43 ? 'hit'
+    const pose = !running && health === 0 ? 'over'
+      : fall || immunity > 43 ? 'hit'
       : crouching ? 'duck'
       : jumps === 2 ? 'double'
       : elevation > 0 ? 'jump' : 'run';
