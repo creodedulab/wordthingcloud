@@ -32,6 +32,12 @@ test('room lifecycle, privacy, moderation and reuse', async () => {
   await request(`/api/admin/rooms/${code}/activity`,'POST',{topic:'두 번째',mode:'live'},admin);
   assert.equal((await request(`/api/rooms/${code}`,'GET',null,user)).body.mine.length,0);
   assert.equal((await request(`/api/admin/activities/${id}`,'GET',null,admin)).body.words.length,1);
+  assert.equal((await request(`/api/admin/activities/${id}`,'POST',{action:'resume'},admin)).status,200);
+  assert.equal((await request(`/api/admin/activities/${id}`,'POST',{action:'apply'},admin)).status,200);
+  assert.equal((await request(`/api/rooms/${code}`,'GET',null,user)).body.activity.id,id);
+  assert.equal((await request(`/api/rooms/${code}/words`,'POST',{word:'다시'},user)).status,201);
+  assert.equal((await request(`/api/admin/activities/${id}`,'DELETE',null,admin)).status,200);
+  assert.equal((await request(`/api/admin/activities/${id}`,'GET',null,admin)).body.words.length,0);
   await request(`/api/admin/participants/${detail.participants[0].id}/kick`,'POST',{},admin);
   assert.equal((await request(`/api/rooms/${code}`,'GET',null,user)).status,401);
   assert.equal((await request('/api/join','POST',{code,nickname:'구름',pin:'1234',rejoin:true})).status,401);

@@ -63,7 +63,7 @@ async function roomByCode(code) {
   return room;
 }
 async function active(room) {
-  return await get('SELECT * FROM activities WHERE room_id=? ORDER BY id DESC LIMIT 1', room.id);
+  return await get('SELECT * FROM activities WHERE room_id=? AND id=COALESCE((SELECT active_activity_id FROM rooms WHERE id=?),(SELECT MAX(id) FROM activities WHERE room_id=?))', room.id, room.id, room.id);
 }
 async function activityData(a, show) {
   if (!a) return null;
@@ -169,7 +169,7 @@ async function api(req, res, url) {
   }
   if (method === 'GET' && path === '/api/admin/rooms') {
     requireAdmin(s);
-    return json(res, 200, await all(`SELECT r.*, (SELECT count(*) FROM participants p WHERE p.room_id=r.id AND p.banned=0) participant_count, (SELECT topic FROM activities a WHERE a.room_id=r.id ORDER BY id DESC LIMIT 1) topic FROM rooms r ORDER BY r.id DESC`));
+    return json(res, 200, await all(`SELECT r.*, (SELECT count(*) FROM participants p WHERE p.room_id=r.id AND p.banned=0) participant_count, (SELECT topic FROM activities a WHERE a.room_id=r.id AND a.id=COALESCE(r.active_activity_id,(SELECT MAX(id) FROM activities WHERE room_id=r.id))) topic FROM rooms r ORDER BY r.id DESC`));
   }
   if (method === 'POST' && path === '/api/admin/rooms') {
     requireAdmin(s);
@@ -203,7 +203,7 @@ async function api(req, res, url) {
         room,
         activities,
         participants,
-        activity: await activityData(activities[0], true)
+        activity: await activityData(await active(room), true)
       });
     }
   }
@@ -218,6 +218,7 @@ async function api(req, res, url) {
     const previous = await active(room);
     if (previous && previous.status !== 'closed') await run("UPDATE activities SET status='closed' WHERE id=?", previous.id);
     const activityId = (await run('INSERT INTO activities(room_id,topic,mode,word_limit,revealed) VALUES(?,?,?,?,?)', room.id, topic, b.mode, limit, b.mode === 'live' ? 1 : 0)).lastInsertRowid;
+    await run('UPDATE rooms SET active_activity_id=? WHERE id=?', Number(activityId), room.id);
     await run('INSERT INTO activity_participants SELECT ?,id FROM participants WHERE room_id=? AND banned=0', Number(activityId), room.id);
     return json(res, 201, {
       ok: true
@@ -229,12 +230,19 @@ async function api(req, res, url) {
     if (!a) throw [404, '활동을 찾을 수 없습니다.'];
     return json(res, 200, await activityData(a, true));
   }
+  if ((m = path.match(/^\/api\/admin\/activities\/(\d+)$/)) && method === 'DELETE') {
+    requireAdmin(s);
+    const a = await get('SELECT * FROM activities WHERE id=?', Number(m[1]));
+    if (!a) throw [404, '활동을 찾을 수 없습니다.'];
+    await run('DELETE FROM words WHERE activity_id=?', a.id);
+    return json(res, 200, {ok: true});
+  }
   if ((m = path.match(/^\/api\/admin\/activities\/(\d+)$/)) && method === 'POST') {
     requireAdmin(s);
     const a = await get('SELECT * FROM activities WHERE id=?', Number(m[1]));
     if (!a) throw [404, '활동을 찾을 수 없습니다.'];
     const b = await body(req);
-    if (b.action === 'stop') await run("UPDATE activities SET status='stopped' WHERE id=?", a.id);else if (b.action === 'resume' && a.status !== 'closed') await run("UPDATE activities SET status='open' WHERE id=?", a.id);else if (b.action === 'reveal' && a.status !== 'open') await run('UPDATE activities SET revealed=1 WHERE id=?', a.id);else throw [400, '현재 상태에서는 실행할 수 없습니다.'];
+    if (b.action === 'apply') await run('UPDATE rooms SET active_activity_id=? WHERE id=?', a.id, a.room_id);else if (b.action === 'stop') await run("UPDATE activities SET status='stopped' WHERE id=?", a.id);else if (b.action === 'resume') await run("UPDATE activities SET status='open' WHERE id=?", a.id);else if (b.action === 'reveal' && a.status !== 'open') await run('UPDATE activities SET revealed=1 WHERE id=?', a.id);else throw [400, '현재 상태에서는 실행할 수 없습니다.'];
     return json(res, 200, {
       ok: true
     });

@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS presence(session_token TEXT PRIMARY KEY REFERENCES se
 CREATE TABLE IF NOT EXISTS login_attempts(subject TEXT NOT NULL, bucket INTEGER NOT NULL, attempts INTEGER NOT NULL, PRIMARY KEY(subject,bucket));
 CREATE TABLE IF NOT EXISTS runner_leaderboard(id INTEGER PRIMARY KEY AUTOINCREMENT, run_id TEXT NOT NULL UNIQUE, nickname TEXT NOT NULL, score INTEGER NOT NULL, distance INTEGER NOT NULL, played_on TEXT NOT NULL);
 `);
+  if (!sqlite.prepare('PRAGMA table_info(rooms)').all().some(column => column.name === 'active_activity_id')) sqlite.exec('ALTER TABLE rooms ADD COLUMN active_activity_id INTEGER');
 }
 function pgSql(sql) {
   let i=0;
@@ -122,7 +123,7 @@ export async function submitWord(roomId,participantId,word,normalized) {
     try {
       const room=sqlite.prepare('SELECT banned FROM rooms WHERE id=?').get(roomId);
       const participant=sqlite.prepare('SELECT banned FROM participants WHERE id=? AND room_id=?').get(participantId,roomId);
-      const activity=sqlite.prepare('SELECT * FROM activities WHERE room_id=? ORDER BY id DESC LIMIT 1').get(roomId);
+      const activity=sqlite.prepare('SELECT * FROM activities WHERE room_id=? AND id=COALESCE((SELECT active_activity_id FROM rooms WHERE id=?),(SELECT MAX(id) FROM activities WHERE room_id=?))').get(roomId,roomId,roomId);
       if(!participant||participant.banned)throw [401,'참가자 로그인이 필요합니다.'];
       if(!activity||activity.status!=='open')throw [400,'현재 단어 입력이 중지되어 있습니다.'];
       if(JSON.parse(room.banned).some(term=>normalized.includes(normalize(term))))throw [400,'사용이 제한된 단어가 포함되어 있습니다.'];
@@ -137,7 +138,7 @@ export async function submitWord(roomId,participantId,word,normalized) {
     await client.query('BEGIN');
     const room=(await client.query('SELECT banned FROM wordthing.rooms WHERE id=$1 FOR UPDATE',[roomId])).rows[0];
     const participant=(await client.query('SELECT banned FROM wordthing.participants WHERE id=$1 AND room_id=$2 FOR UPDATE',[participantId,roomId])).rows[0];
-    const activity=(await client.query('SELECT * FROM wordthing.activities WHERE room_id=$1 ORDER BY id DESC LIMIT 1 FOR UPDATE',[roomId])).rows[0];
+    const activity=(await client.query('SELECT * FROM wordthing.activities WHERE room_id=$1 AND id=COALESCE((SELECT active_activity_id FROM wordthing.rooms WHERE id=$1),(SELECT MAX(id) FROM wordthing.activities WHERE room_id=$1)) FOR UPDATE',[roomId])).rows[0];
     if(!room||!participant||participant.banned)throw [401,'참가자 로그인이 필요합니다.'];
     if(!activity||activity.status!=='open')throw [400,'현재 단어 입력이 중지되어 있습니다.'];
     if(JSON.parse(room.banned).some(term=>normalized.includes(normalize(term))))throw [400,'사용이 제한된 단어가 포함되어 있습니다.'];
